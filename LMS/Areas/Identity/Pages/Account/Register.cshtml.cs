@@ -194,9 +194,72 @@ namespace LMS.Areas.Identity.Pages.Account
         /// <returns>The uID of the new user</returns>
         string CreateNewUser( string firstName, string lastName, DateTime DOB, string departmentAbbrev, string role )
         {
-            return "unknown";
+            
+            string id = getUniqueUID();
+
+            if (role.Equals("Administrator")) {
+                Administrator admin = new Administrator();
+                admin.FirstName = firstName;
+                admin.LastName = lastName;
+                admin.Dob = DateOnly.FromDateTime(DOB);
+                admin.UId = id;
+                db.Add( admin );
+                db.SaveChanges();
+                return id;
+            }
+            if (role.Equals("Student")) { 
+                Student student = new Student();
+                student.FirstName = firstName;
+                student.LastName = lastName;
+                student.Dob = DateOnly.FromDateTime(DOB);
+                student.UId = id;
+                student.Major = departmentAbbrev;
+                db.Add( student );
+                db.SaveChanges();
+                return id;
+            }
+            Professor prof = new Professor();
+            prof.FirstName = firstName;
+            prof.LastName = lastName;
+            prof.Dob = DateOnly.FromDateTime(DOB);
+            prof.UId = id;
+            prof.Department = departmentAbbrev;
+            db.Add(prof);
+            db.SaveChanges();
+            return id;
         }
 
+        string getUniqueUID() {
+            var maxAdminID = (from a in db.Administrators
+                              where a.UId != null
+                              select a.UId).Max();
+            var maxStudentID = (from s in db.Students
+                                where s.UId != null
+                                select s.UId).Max();
+            var maxProfessorID = (from p in db.Professors
+                                  where p.UId != null
+                                  select p.UId).Max();
+            List<String> notNullIDs = new List<string>();
+            if (maxAdminID != null) {
+                notNullIDs.Add(maxAdminID);
+            }
+            if (maxStudentID != null)
+            {
+                notNullIDs.Add(maxStudentID);
+            }
+            if (maxProfessorID != null)
+            {
+                notNullIDs.Add(maxProfessorID);
+            }
+            if (notNullIDs.Count == 0) {
+                return "u0000000";
+            }
+
+            string max = notNullIDs.Max();
+            int nextNumber = int.Parse(max.Substring(1)) + 1;
+            return "u" + nextNumber.ToString("D7");
+        }
+      
         /*******End code to modify********/
     }
 }
