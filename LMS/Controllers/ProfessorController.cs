@@ -4,9 +4,12 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using LMS.Models.LMSModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 [assembly: InternalsVisibleTo( "LMSControllerTests" )]
@@ -118,7 +121,23 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetStudentsInClass(string subject, int num, string season, int year)
         {
-            return Json(null);
+            var students = from d in db.Departments
+                        where d.SubjectAbbrev == subject
+                        from c in d.Courses
+                        where c.Number == num
+                        from cl in c.Classes
+                        where cl.SemSeason == season && cl.SemYear == year
+                        from e in cl.Enrollments
+                        select new
+                        {
+                            fname = e.Student.FirstName,
+                            lname = e.Student.LastName,
+                            uid = e.Student.UId,
+                            dob = e.Student.Dob,
+                            grade = e.Grade
+                        };
+       
+            return Json(students);
         }
 
 
@@ -141,7 +160,24 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentsInCategory(string subject, int num, string season, int year, string category)
         {
-            return Json(null);
+            var assignments = from d in db.Departments
+                        where d.SubjectAbbrev == subject
+                        from c in d.Courses
+                        where c.Number == num
+                        from cl in c.Classes
+                        where cl.SemSeason == season && cl.SemYear == year
+                        from ac in cl.AssignmentCategories
+                        where ac.Name == category || ac.Name == null
+                        from a in ac.Assignments
+                        select new
+                        {
+                            aname = a.Name,
+                            cname = ac.Name,
+                            due = a.DueDate,
+                            submissions = a.Submissions.Count,
+                        };
+
+            return Json(assignments);
         }
 
 
@@ -159,7 +195,21 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentCategories(string subject, int num, string season, int year)
         {
-            return Json(null);
+
+            var assignCats = from d in db.Departments
+                              where d.SubjectAbbrev == subject
+                              from c in d.Courses
+                              where c.Number == num
+                              from cl in c.Classes
+                              where cl.SemSeason == season && cl.SemYear == year
+                              from ac in cl.AssignmentCategories      
+                              select new
+                              {
+                                  name = ac.Name,
+                                  weight = ac.Weight,
+                              };
+
+            return Json(assignCats);
         }
 
         /// <summary>
@@ -175,7 +225,36 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>A JSON object containing {success = true/false} </returns>
         public IActionResult CreateAssignmentCategory(string subject, int num, string season, int year, string category, int catweight)
         {
-            return Json(new { success = false });
+            var query = from d in db.Departments
+                        where d.SubjectAbbrev == subject
+                        from c in d.Courses
+                        where c.Number == num
+                        from cl in c.Classes
+                        where cl.SemSeason == season && cl.SemYear == year
+                        from ac in cl.AssignmentCategories
+                        where ac.Name == category
+                        select c;
+
+            if (query.Count() > 0)
+            {
+                return Json(new { success = false });
+            }
+
+            var classID = from d in db.Departments
+                        where d.SubjectAbbrev == subject
+                        from c in d.Courses
+                        where c.Number == num
+                        from cl in c.Classes
+                        where cl.SemSeason == season && cl.SemYear == year
+                        select cl.ClassId;
+
+            AssignmentCategory newAC = new AssignmentCategory();
+            newAC.Weight = (uint)catweight;
+            newAC.Name = category;
+            newAC.ClassId = classID.FirstOrDefault();
+            db.Add(newAC);
+            db.SaveChanges();
+            return Json(new { success = true });
         }
 
         /// <summary>
