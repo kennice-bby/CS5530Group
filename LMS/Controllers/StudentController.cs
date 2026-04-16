@@ -75,8 +75,21 @@ namespace LMS.Controllers
         /// <param name="uid">The uid of the student</param>
         /// <returns>The JSON array</returns>
         public IActionResult GetMyClasses(string uid)
-        {           
-            return Json(null);
+        {
+            var classes = from s in db.Students
+                          where s.UId == uid
+                          from e in s.Enrollments
+                          select new
+                          {
+                              subject = e.Class.Course.SubjectAbbrev,
+                              number = e.Class.Course.Number,
+                              name = e.Class.Course.Name,
+                              season = e.Class.SemSeason,
+                              year = e.Class.SemYear,
+                              grade = e.Grade
+                          };
+
+            return Json(classes);
         }
 
         /// <summary>
@@ -95,6 +108,7 @@ namespace LMS.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentsInClass(string subject, int num, string season, int year, string uid)
         {            
+
             return Json(null);
         }
 
