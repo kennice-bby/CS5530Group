@@ -325,8 +325,28 @@ namespace LMS_CustomIdentity.Controllers
         /// <param name="asgname">The name of the assignment</param>
         /// <returns>The JSON array</returns>
         public IActionResult GetSubmissionsToAssignment(string subject, int num, string season, int year, string category, string asgname)
-        {
-            return Json(null);
+        { 
+            var submissions = from d in db.Departments
+                              where d.SubjectAbbrev == subject
+                              from c in d.Courses
+                              where c.Number == num
+                              from cl in c.Classes
+                              where cl.SemSeason == season && cl.SemYear == year
+                              from ac in cl.AssignmentCategories
+                              where ac.Name == category || ac.Name == null
+                              from a in ac.Assignments
+                              where a.Name == asgname
+                              from s in a.Submissions
+                              select new
+                              {
+                                  fname = s.StudentU.FirstName,
+                                  lname = s.StudentU.LastName,
+                                  uid = s.StudentUid,
+                                  time = s.SubmissionDate,
+                                  score = s.Score,
+                              };
+
+            return Json(submissions);
         }
 
 
@@ -344,6 +364,28 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>A JSON object containing success = true/false</returns>
         public IActionResult GradeSubmission(string subject, int num, string season, int year, string category, string asgname, string uid, int score)
         {
+            var submission =  (from d in db.Departments
+                              where d.SubjectAbbrev == subject
+                              from c in d.Courses
+                              where c.Number == num
+                              from cl in c.Classes
+                              where cl.SemSeason == season && cl.SemYear == year
+                              from ac in cl.AssignmentCategories
+                              where ac.Name == category
+                              from a in ac.Assignments
+                              where a.Name == asgname
+                              from s in a.Submissions
+                              where s.StudentUid == uid
+                              select s).FirstOrDefault();
+
+            if (submission != null)
+            {
+                submission.Score = (uint)score;
+                db.Add(submission);
+                db.SaveChanges();
+                return Json(new { success = true });
+            }
+
             return Json(new { success = false });
         }
 
