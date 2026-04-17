@@ -119,7 +119,7 @@ namespace LMS.Controllers
                             from e in cl.Enrollments
                             where e.Student.UId == uid
                             from cat in cl.AssignmentCategories
-                            from a in db.Assignments
+                            from a in cat.Assignments
                             from s in a.Submissions.Where(s => s.StudentUid == uid).DefaultIfEmpty()
                             select new
                             {

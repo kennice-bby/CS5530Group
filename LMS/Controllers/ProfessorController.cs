@@ -301,8 +301,21 @@ namespace LMS_CustomIdentity.Controllers
             assign.Contents = asgcontents;
             assign.DueDate = asgdue;
             assign.CategoryId = categoryID;
+
             db.Add(assign);
             db.SaveChanges();
+
+            var enrollments = (from d in db.Departments
+                              where d.SubjectAbbrev == subject
+                              from c in d.Courses
+                              where c.Number == num
+                              from cl in c.Classes
+                              where cl.SemSeason == season && cl.SemYear == year
+                              from e in cl.Enrollments
+                              select e).ToList();
+            foreach (Enrollment enrollment in enrollments) {
+                updateGrade(enrollment.StudentId, subject, num, season, year);
+            }
             return Json(new { success = true });
         }
 
@@ -381,14 +394,105 @@ namespace LMS_CustomIdentity.Controllers
             if (submission != null)
             {
                 submission.Score = (uint)score;
-                db.Add(submission);
                 db.SaveChanges();
+
+                updateGrade(uid, subject, num, season, year);
+
                 return Json(new { success = true });
             }
 
             return Json(new { success = false });
         }
 
+        private void updateGrade(string uid, string subject, int num, string season, int year) {
+            var currClass = (from d in db.Departments
+                           where d.SubjectAbbrev == subject
+                           from c in d.Courses
+                           where c.Number == num
+                           from cl in c.Classes
+                           where cl.SemSeason == season && cl.SemYear == year
+                           select cl).FirstOrDefault();
+            double scaledTotal = 0;
+            uint totalWeights = 0;
+            if (currClass != null) {
+                var categories = (from cat in db.AssignmentCategories
+                               where currClass.ClassId == cat.ClassId
+                               select cat).ToList();
+                foreach (AssignmentCategory category in categories)
+                {
+                    uint totalPoints = 0;
+                    uint totalMaxPoints = 0;
+                    uint categoryWeight = (uint)category.Weight;
+                    totalWeights += categoryWeight;
+
+                    var assignments = (from a in db.Assignments
+                                      where a.CategoryId == category.CategoryId
+                                      select a).ToList();
+                    foreach (Assignment assignment in assignments)
+                    {
+                        totalMaxPoints += assignment.MaxPoints;
+                        var submission = (from s in db.Submissions
+                                          where s.StudentUid == uid && s.AssignmentId == assignment.AssignmentId
+                                          select s).FirstOrDefault();
+                        if (submission != null)
+                        {
+                            totalPoints += submission.Score;
+                        }
+                    }
+                    if (totalMaxPoints != 0)
+                    {
+                        scaledTotal += (totalPoints / totalMaxPoints) * categoryWeight;
+                    }
+
+                }
+
+                double scalingFactor = 100 / totalWeights;
+                scaledTotal *= scalingFactor;
+                string letterGrade = convertToLetterGrade(scaledTotal);
+
+                var enrollment = (from e in db.Enrollments
+                                 where e.StudentId == uid && e.ClassId == currClass.ClassId
+                                 select e).FirstOrDefault();
+                if (enrollment != null) {
+                    enrollment.Grade = letterGrade;
+                    db.SaveChanges();
+                }
+                
+            }
+            
+
+        }
+
+        private string convertToLetterGrade(double classPercent)
+        {
+            switch (classPercent)
+            {
+                case >= 93:
+                    return "A";
+                case >= 90:
+                    return "A-";
+                case >= 87:
+                    return "B+";
+                case >= 83:
+                    return "B";
+                case >= 80:
+                    return "B-";
+                case >= 77:
+                    return "C+";
+                case >= 73:
+                    return "C";
+                case >= 70:
+                    return "C-";
+                case >= 67:
+                    return "D+";
+                case >= 63:
+                    return "D";
+                case >= 60:
+                    return "D-";
+                default:
+                    return "E";
+            }
+        }
 
         /// <summary>
         /// Returns a JSON array of the classes taught by the specified professor
