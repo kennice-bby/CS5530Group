@@ -441,12 +441,12 @@ namespace LMS_CustomIdentity.Controllers
                     }
                     if (totalMaxPoints != 0)
                     {
-                        scaledTotal += (totalPoints / totalMaxPoints) * categoryWeight;
+                        scaledTotal += (((double)totalPoints / totalMaxPoints) * categoryWeight);
                     }
 
                 }
 
-                double scalingFactor = 100 / totalWeights;
+                double scalingFactor = 100.0 / totalWeights;
                 scaledTotal *= scalingFactor;
                 string letterGrade = convertToLetterGrade(scaledTotal);
 
