@@ -219,8 +219,8 @@ namespace LMS.Controllers
                 return Json(new { success = false });
             }
 
-            var student = from e in currClass.Enrollments
-                              where e.StudentId == uid
+            var student = from e in db.Enrollments
+                              where e.StudentId == uid && e.ClassId == currClass.ClassId
                               select e.Student;
 
             if (student.Any()) {
