@@ -57,16 +57,16 @@ namespace LMS.Controllers
         public IActionResult GetCatalog()
         {
             var catalog = from d in db.Departments
-                          from c in d.Courses
                           select new
                           {
-                              subject = c.SubjectAbbrev,
+                              subject = d.SubjectAbbrev,
                               dname = d.Name,
-                              courses = d.Courses.Select(c => new
-                              {
-                                  number = c.Number,
-                                  cname = c.Name
-                              })
+                              courses = from c in d.Courses
+                                        select new
+                                        {
+                                            number = c.Number,
+                                            cname = c.Name
+                                        }
                           };
             return Json(catalog);
         }

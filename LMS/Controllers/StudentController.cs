@@ -126,7 +126,7 @@ namespace LMS.Controllers
                                 aname = a.Name,
                                 cname = cat.Name,
                                 due = a.DueDate,
-                                score = s == null ? 0 : s.Score
+                                score = s == null ? null : (uint?)s.Score
                             };
 
             return Json(currClass);
@@ -219,9 +219,9 @@ namespace LMS.Controllers
                 return Json(new { success = false });
             }
 
-            var student = from e in currClass.Enrollments
-                              where e.StudentId == uid
-                              select e.Student;
+            var student = from e in db.Enrollments
+                        where e.StudentId == uid && e.ClassId == currClass.ClassId
+                        select e.Student;
 
             if (student.Any()) {
                 return Json(new { success = false });

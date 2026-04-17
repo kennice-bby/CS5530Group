@@ -189,8 +189,10 @@ namespace LMS.Controllers
                         where course.Number == number
                         &&  course.SubjectAbbrev == subject
                         select course.CourseId).FirstOrDefault();
+  
+            
             Class newClass = new Class();
-            newClass.CourseId = cID;
+            newClass.CourseId = cID ;
             newClass.SemSeason = season;
             newClass.SemYear = (uint)year;
             newClass.StartTime = TimeOnly.FromDateTime(start);
@@ -200,6 +202,7 @@ namespace LMS.Controllers
 
             db.Add(newClass);
             db.SaveChanges();
+
             return Json(new { success = true});
         }
 
