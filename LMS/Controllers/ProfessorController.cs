@@ -290,29 +290,38 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>A JSON object containing success = true/false</returns>
         public IActionResult CreateAssignment(string subject, int num, string season, int year, string category, string asgname, int asgpoints, DateTime asgdue, string asgcontents)
         {
-            var categoryID = (from c in db.Classes
-                             from aCategory in c.AssignmentCategories
-                             where aCategory.Name == category
-                             select aCategory.CategoryId).FirstOrDefault();
+           var currentclass = (from d in db.Departments
+                              where d.SubjectAbbrev == subject
+                              from c in d.Courses
+                              where c.Number == num
+                              from cl in c.Classes
+                              where cl.SemSeason == season && cl.SemYear == year
+                              select cl).FirstOrDefault();
+
+            if (currentclass == null)
+            {
+                return Json(new { success = false });
+
+            }
+
+            var catergoryId = (from cat in db.AssignmentCategories
+                               where cat.ClassId == currentclass.ClassId && cat.Name == category
+                               select cat.CategoryId).FirstOrDefault();
 
             Assignment assign = new Assignment();
             assign.Name = asgname;
             assign.MaxPoints = (uint) asgpoints;
             assign.Contents = asgcontents;
             assign.DueDate = asgdue;
-            assign.CategoryId = categoryID;
+            assign.CategoryId = catergoryId;
 
             db.Add(assign);
             db.SaveChanges();
 
-            var enrollments = (from d in db.Departments
-                              where d.SubjectAbbrev == subject
-                              from c in d.Courses
-                              where c.Number == num
-                              from cl in c.Classes
-                              where cl.SemSeason == season && cl.SemYear == year
-                              from e in cl.Enrollments
+            var enrollments = (from e in db.Enrollments
+                              where currentclass.ClassId == e.ClassId
                               select e).ToList();
+
             foreach (Enrollment enrollment in enrollments) {
                 updateGrade(enrollment.StudentId, subject, num, season, year);
             }
