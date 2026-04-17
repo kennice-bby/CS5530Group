@@ -1,11 +1,12 @@
-﻿using System;
+﻿using LMS.Models.LMSModels;
+using Microsoft.AspNetCore.Mvc;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
-using LMS.Models.LMSModels;
-using Microsoft.AspNetCore.Mvc;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 [assembly: InternalsVisibleTo( "LMSControllerTests" )]
@@ -54,8 +55,20 @@ namespace LMS.Controllers
         /// </summary>
         /// <returns>The JSON array</returns>
         public IActionResult GetCatalog()
-        {            
-            return Json(null);
+        {
+            var catalog = from d in db.Departments
+                          from c in d.Courses
+                          select new
+                          {
+                              subject = c.SubjectAbbrev,
+                              dname = d.Name,
+                              courses = d.Courses.Select(c => new
+                              {
+                                  number = c.Number,
+                                  cname = c.Name
+                              })
+                          };
+            return Json(catalog);
         }
 
         /// <summary>
@@ -73,8 +86,22 @@ namespace LMS.Controllers
         /// <param name="number">The course number, as in 5530</param>
         /// <returns>The JSON array</returns>
         public IActionResult GetClassOfferings(string subject, int number)
-        {            
-            return Json(null);
+        {
+            var classes = from c in db.Courses
+                        where c.Number == number
+                        && c.SubjectAbbrev == subject
+                        from cl in c.Classes
+                        select new { 
+                            season = cl.SemSeason,
+                            year = cl.SemYear,
+                            location = cl.Location,
+                            start = cl.StartTime,
+                            end = cl.EndTime,
+                            fname = cl.ProfessorU.FirstName,
+                            lname = cl.ProfessorU.LastName
+                        };
+
+            return Json(classes);
         }
 
         /// <summary>
@@ -90,8 +117,22 @@ namespace LMS.Controllers
         /// <param name="asgname">The name of the assignment in the category</param>
         /// <returns>The assignment contents</returns>
         public IActionResult GetAssignmentContents(string subject, int num, string season, int year, string category, string asgname)
-        {            
-            return Content("");
+        {
+            var contents = (from d in db.Departments
+                           where d.SubjectAbbrev == subject
+                           from c in d.Courses
+                           where c.Number == num
+                           from cl in c.Classes
+                           where cl.SemSeason == season && cl.SemYear == year
+                           from cat in cl.AssignmentCategories
+                           where cat.Name == category
+                           from a in cat.Assignments
+                           where a.Name == asgname
+                           select a.Contents).FirstOrDefault();
+            if (contents == null) {
+                return Content("");
+            }
+            return Content(contents);
         }
 
 
@@ -110,8 +151,25 @@ namespace LMS.Controllers
         /// <param name="uid">The uid of the student who submitted it</param>
         /// <returns>The submission text</returns>
         public IActionResult GetSubmissionText(string subject, int num, string season, int year, string category, string asgname, string uid)
-        {            
-            return Content("");
+        {
+            var text = (from d in db.Departments
+                            where d.SubjectAbbrev == subject
+                            from c in d.Courses
+                            where c.Number == num
+                            from cl in c.Classes
+                            where cl.SemSeason == season && cl.SemYear == year
+                            from cat in cl.AssignmentCategories
+                            where cat.Name == category
+                            from a in cat.Assignments
+                            where a.Name == asgname
+                            from s in a.Submissions
+                            where s.StudentUid == uid
+                            select s.Contents).FirstOrDefault();
+            if (text == null)
+            {
+                return Content("");
+            }
+            return Content(text);
         }
 
 
@@ -132,7 +190,50 @@ namespace LMS.Controllers
         /// or an object containing {success: false} if the user doesn't exist
         /// </returns>
         public IActionResult GetUser(string uid)
-        {           
+        {
+            var studentUser = (from s in db.Students
+                              where s.UId == uid
+                              select s).FirstOrDefault();
+            var profUser = (from p in db.Professors
+                           where p.UId == uid
+                           select p).FirstOrDefault();
+
+            var adminUser = (from a in db.Administrators
+                           where a.UId == uid
+                           select a).FirstOrDefault();
+
+            if (adminUser == null)
+            {
+                if (studentUser != null)
+                {
+                    return Json(new
+                    {
+                        fname = studentUser.FirstName,
+                        lname = studentUser.LastName,
+                        uid = studentUser.UId,
+                        department = studentUser.Major
+                    });
+                }
+                if (profUser != null)
+                {
+                    return Json(new
+                    {
+                        fname = profUser.FirstName,
+                        lname = profUser.LastName,
+                        uid = profUser.UId,
+                        department = profUser.Department
+                    });
+                }
+            }
+            else {
+                return Json(new
+                {
+                    fname = adminUser.FirstName,
+                    lname = adminUser.LastName,
+                    uid = adminUser.UId
+                });
+            }
+
             return Json(new { success = false });
         }
 

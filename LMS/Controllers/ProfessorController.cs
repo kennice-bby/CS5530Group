@@ -173,7 +173,7 @@ namespace LMS_CustomIdentity.Controllers
                                      aname = a.Name,
                                      cname = ac.Name,
                                      due = a.DueDate,
-                                     submissions = a.Submissions
+                                     submissions = a.Submissions.Count
                                  };
 
                 return Json(allAssigns);

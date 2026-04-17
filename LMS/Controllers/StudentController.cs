@@ -1,11 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using LMS.Models.LMSModels;
+﻿using LMS.Models.LMSModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 [assembly: InternalsVisibleTo( "LMSControllerTests" )]
@@ -107,9 +109,27 @@ namespace LMS.Controllers
         /// <param name="uid"></param>
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentsInClass(string subject, int num, string season, int year, string uid)
-        {            
+        {
+            var currClass = from d in db.Departments
+                            where d.SubjectAbbrev == subject
+                            from c in d.Courses
+                            where c.Number == num
+                            from cl in c.Classes
+                            where cl.SemSeason == season && cl.SemYear == year
+                            from e in cl.Enrollments
+                            where e.Student.UId == uid
+                            from cat in cl.AssignmentCategories
+                            from a in db.Assignments
+                            from s in a.Submissions.Where(s => s.StudentUid == uid).DefaultIfEmpty()
+                            select new
+                            {
+                                aname = a.Name,
+                                cname = cat.Name,
+                                due = a.DueDate,
+                                score = s == null ? 0 : s.Score
+                            };
 
-            return Json(null);
+            return Json(currClass);
         }
 
 
@@ -133,8 +153,46 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = true/false}</returns>
         public IActionResult SubmitAssignmentText(string subject, int num, string season, int year,
           string category, string asgname, string uid, string contents)
-        {           
-            return Json(new { success = false });
+        {
+            var assignment = (from d in db.Departments
+                              where d.SubjectAbbrev == subject
+                              from c in d.Courses
+                              where c.Number == num
+                              from cl in c.Classes
+                              where cl.SemSeason == season && cl.SemYear == year
+                              from cat in cl.AssignmentCategories
+                              where cat.Name == category
+                              from a in cat.Assignments
+                              where a.Name == asgname
+                              select a).FirstOrDefault();
+            if(assignment == null) {
+                return Json(new { success = false });
+            }
+
+            var submission = (from s in db.Submissions
+                              where s.AssignmentId == assignment.AssignmentId
+                              && s.StudentUid == uid
+                              select s).FirstOrDefault();
+
+            if (submission != null) {
+                submission.Contents = contents;
+                submission.SubmissionDate = DateTime.Now;
+                db.SaveChanges();
+                return Json(new { success = true });
+            }
+
+            Submission newSubmission = new Submission();
+            newSubmission.Contents = contents;
+            newSubmission.SubmissionDate = DateTime.Now;
+            newSubmission.Score = 0;
+            newSubmission.StudentUid = uid;
+            newSubmission.AssignmentId = assignment.AssignmentId;
+
+
+            db.Add(newSubmission);
+            db.SaveChanges();
+
+            return Json(new { success = true});
         }
 
 
@@ -149,8 +207,33 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = {true/false}. 
         /// false if the student is already enrolled in the class, true otherwise.</returns>
         public IActionResult Enroll(string subject, int num, string season, int year, string uid)
-        {          
-            return Json(new { success = false});
+        {
+            var currClass = (from d in db.Departments
+                          where d.SubjectAbbrev == subject
+                          from c in d.Courses
+                          where c.Number == num
+                          from cl in c.Classes
+                          where cl.SemSeason == season && cl.SemYear == year
+                          select cl).FirstOrDefault();
+            if (currClass == null) {
+                return Json(new { success = false });
+            }
+
+            var student = from e in currClass.Enrollments
+                              where e.StudentId == uid
+                              select e.Student;
+
+            if (student.Any()) {
+                return Json(new { success = false });
+            }
+
+            Enrollment enrollment = new Enrollment();
+            enrollment.Grade = "--";
+            enrollment.StudentId = uid;
+            enrollment.ClassId = currClass.ClassId;
+            db.Add(enrollment);
+            db.SaveChanges();
+            return Json(new { success = true });
         }
 
 
@@ -167,8 +250,81 @@ namespace LMS.Controllers
         /// <param name="uid">The uid of the student</param>
         /// <returns>A JSON object containing a single field called "gpa" with the number value</returns>
         public IActionResult GetGPA(string uid)
-        {            
-            return Json(null);
+        {
+            var enrollements = (from s in db.Students
+                               where s.UId == uid
+                               select s.Enrollments).FirstOrDefault();
+            if (enrollements == null) {
+                return Json(new { gpa = 0.0 });
+            }
+
+            double totalPointValue = 0;
+            int count = 0;
+            // adding valid grades
+            foreach (var enrollement in enrollements) {
+                switch (enrollement.Grade)
+                {
+                    case "A":
+                        totalPointValue += 4.0;
+                        count++;
+                        break;
+                    case "A-":
+                        totalPointValue += 3.7;
+                        count++;
+                        break;
+                    case "B+":
+                        totalPointValue += 3.3;
+                        count++;
+                        break;
+                    case "B":
+                        totalPointValue += 3.0;
+                        count++;
+                        break;
+                    case "B-":
+                        totalPointValue += 2.7;
+                        count++;
+                        break;
+                    case "C+":
+                        totalPointValue += 2.3;
+                        count++;
+                        break;
+                    case "C":
+                        totalPointValue += 2.0;
+                        count++;
+                        break;
+                    case "C-":
+                        totalPointValue += 1.7;
+                        count++;
+                        break;
+                    case "D+":
+                        totalPointValue += 1.3;
+                        count++;
+                        break;
+                    case "D":
+                        totalPointValue += 1.0;
+                        count++;
+                        break;
+                    case "D-":
+                        totalPointValue += 0.7;
+                        count++;
+                        break;
+                    case "E":
+                        totalPointValue += 0.0;
+                        count++;
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            if(totalPointValue == 0 && count == 0)
+            {
+                return Json(new { gpa = 0.0 });
+            }
+
+            totalPointValue /= count;
+
+            return Json(new { gpa = totalPointValue });
         }
                 
         /*******End code to modify********/
